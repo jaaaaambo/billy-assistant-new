@@ -17,7 +17,7 @@ with open(creds_path, "w") as f:
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 creds = ServiceAccountCredentials.from_json_keyfile_name(creds_path, scope)
 client = gspread.authorize(creds)
-spreadsheet = client.open_by_key("1AbCDEFGHIJKLmnOPqrSTuvWXYZ1234567890abcD3F")  # название таблицы
+spreadsheet = client.open_by_key("1regprZLhbfhoai4f_gaAekCwqWVpjBukW1JXsFOOm6w")  # название таблицы
 
 # OpenAI
 openai.api_key = os.getenv("OPENAI_API_KEY")
