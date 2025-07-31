@@ -1,7 +1,8 @@
 import logging
+import os
 from aiogram import Bot, Dispatcher, executor, types
 
-API_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'
+API_TOKEN = os.getenv("API_TOKEN")  # ← вот это исправлено
 
 # Включаем логирование
 logging.basicConfig(level=logging.INFO)
@@ -15,9 +16,11 @@ tasks = []
 
 @dp.message_handler(commands=['start'])
 async def send_welcome(message: types.Message):
-    await message.reply("Привет! Я — Билли Миллиган 🤖
-Просто отправь мне задачу, и я её сохраню.
-Команда /summary покажет список задач.")
+    await message.reply(
+        "Привет! Я — Билли Миллиган 🤖\n"
+        "Просто отправь мне задачу, и я её сохраню.\n"
+        "Команда /summary покажет список задач."
+    )
 
 @dp.message_handler(commands=['summary'])
 async def send_summary(message: types.Message):
