@@ -1,44 +1,36 @@
-import logging
+import telebot
 import os
-from aiogram import Bot, Dispatcher, executor, types
 
-API_TOKEN = os.getenv("API_TOKEN")  # ← вот это исправлено
+API_TOKEN = os.getenv("API_TOKEN")
+bot = telebot.TeleBot(API_TOKEN)
 
-# Включаем логирование
-logging.basicConfig(level=logging.INFO)
-
-# Инициализация бота и диспетчера
-bot = Bot(token=API_TOKEN)
-dp = Dispatcher(bot)
-
-# Простой список задач в оперативной памяти
 tasks = []
 
-@dp.message_handler(commands=['start'])
-async def send_welcome(message: types.Message):
-    await message.reply(
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
+    bot.reply_to(message,
         "Привет! Я — Билли Миллиган 🤖\n"
         "Просто отправь мне задачу, и я её сохраню.\n"
-        "Команда /summary покажет список задач."
-    )
+        "Команда /summary покажет список задач.\n"
+        "Команда /clear удалит все задачи.")
 
-@dp.message_handler(commands=['summary'])
-async def send_summary(message: types.Message):
+@bot.message_handler(commands=['summary'])
+def send_summary(message):
     if not tasks:
-        await message.reply("Пока задач нет. Отправь мне что-нибудь.")
+        bot.reply_to(message, "Пока задач нет. Отправь мне что-нибудь.")
     else:
         response = "\n".join([f"{i+1}. {task}" for i, task in enumerate(tasks)])
-        await message.reply(f"📝 Вот твои задачи:\n{response}")
+        bot.reply_to(message, f"📝 Вот твои задачи:\n{response}")
 
-@dp.message_handler(commands=['clear'])
-async def clear_tasks(message: types.Message):
+@bot.message_handler(commands=['clear'])
+def clear_tasks(message):
     tasks.clear()
-    await message.reply("Все задачи удалены.")
+    bot.reply_to(message, "Все задачи удалены.")
 
-@dp.message_handler()
-async def handle_task(message: types.Message):
+@bot.message_handler(func=lambda message: True)
+def handle_task(message):
     tasks.append(message.text)
-    await message.reply("Задача сохранена ✅")
+    bot.reply_to(message, "Задача сохранена ✅")
 
-if __name__ == '__main__':
-    executor.start_polling(dp, skip_updates=True)
+if __name__ == "__main__":
+    bot.infinity_polling()
