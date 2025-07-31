@@ -1,50 +1,68 @@
 import os
-import json
-import base64
 import telebot
 import openai
 import gspread
-from datetime import datetime
+import base64
+import json
+
 from oauth2client.service_account import ServiceAccountCredentials
+from datetime import datetime
 
-# Восстанавливаем credentials.json из переменной окружения
-creds_b64 = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
-creds_path = "credentials.json"
-with open(creds_path, "w") as f:
-    f.write(base64.b64decode(creds_b64).decode("utf-8"))
+# Фиктивный web server для Render
+from flask import Flask
+app = Flask(__name__)
 
-# Авторизация в Google Sheets
+@app.route('/')
+def home():
+    return "Running..."
+
+# Переменные окружения
+TELEGRAM_TOKEN = os.getenv("BOT_TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+GOOGLE_CREDS_B64 = os.getenv("GOOGLE_CREDS_B64")
+SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
+
+# Декодируем Google credentials
+creds_json_path = "google_creds.json"
+with open(creds_json_path, "w") as f:
+    f.write(base64.b64decode(GOOGLE_CREDS_B64).decode("utf-8"))
+
+# Подключаемся к таблице
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name(creds_path, scope)
+creds = ServiceAccountCredentials.from_json_keyfile_name(creds_json_path, scope)
 client = gspread.authorize(creds)
-spreadsheet = client.open_by_key("1regprZLhbfhoai4f_gaAekCwqWVpjBukW1JXsFOOm6w")  # название таблицы
+spreadsheet = client.open_by_key(SPREADSHEET_ID)
+sheet = spreadsheet.sheet1
 
 # OpenAI
-openai.api_key = os.getenv("OPENAI_API_KEY")
+openai.api_key = OPENAI_API_KEY
 
-# Telegram
-TOKEN = os.getenv("TELEGRAM_TOKEN")
-bot = telebot.TeleBot(TOKEN)
+# Telegram bot
+bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
-# Хендлер сообщений
-@bot.message_handler(func=lambda message: True)
-def handle_message(message):
-    user_input = message.text
+@bot.message_handler(commands=['start'])
+def handle_start(message):
+    bot.send_message(message.chat.id, "Привет! Я твой ассистент. Напиши мне задачу или мысль.")
 
-    # Запрос к OpenAI
-    response = openai.ChatCompletion.create(
+@bot.message_handler(func=lambda msg: True)
+def handle_text(message):
+    text = message.text.strip()
+
+    # Отправка в GPT
+    gpt_response = openai.ChatCompletion.create(
         model="gpt-4",
-        messages=[
-            {"role": "system", "content": "Ты — ИИ-ассистент пользователя, помогаешь с задачами, идеями и дедлайнами."},
-            {"role": "user", "content": user_input},
-        ]
+        messages=[{"role": "user", "content": text}]
     )
-    reply = response["choices"][0]["message"]["content"]
 
+    reply = gpt_response.choices[0].message.content.strip()
     bot.send_message(message.chat.id, reply)
 
-    # Пример записи в таблицу
-    sheet = spreadsheet.worksheet("Задачи")  # Название листа
-    sheet.append_row([datetime.now().isoformat(), user_input, "from Telegram"])
+    # Сохраняем в Google Таблицу
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    sheet.append_row([now, message.chat.username or "", text, reply])
 
-bot.polling()
+# Запуск Telegram-бота
+if __name__ == "__main__":
+    import threading
+    threading.Thread(target=lambda: bot.polling(none_stop=True)).start()
+    app.run(host="0.0.0.0", port=10000)
