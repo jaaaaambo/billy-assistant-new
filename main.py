@@ -2,8 +2,8 @@ import telebot
 import os
 from gpt import ask_gpt
 
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-bot = telebot.TeleBot(TOKEN)
+TOKENN = os.getenv("TELEGRAM_TOKEN")
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
