@@ -1,68 +1,53 @@
 import os
-import telebot
-import openai
-import gspread
-import base64
 import json
-
-from oauth2client.service_account import ServiceAccountCredentials
-from datetime import datetime
-
-# Фиктивный web server для Render
+import base64
+import gspread
+import telebot
+import threading
 from flask import Flask
-app = Flask(__name__)
+from openai import OpenAI
 
-@app.route('/')
-def home():
-    return "Running..."
+# Распаковка Google credentials
+creds_b64 = os.getenv("GOOGLE_CREDS_B64")
+with open("credentials.json", "w") as f:
+    f.write(base64.b64decode(creds_b64).decode("utf-8"))
 
-# Переменные окружения
-TELEGRAM_TOKEN = os.getenv("BOT_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-GOOGLE_CREDS_B64 = os.getenv("GOOGLE_CREDS_B64")
-SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
+# Подключение к Google Sheets
+gc = gspread.service_account(filename="credentials.json")
+spreadsheet_id = os.getenv("SPREADSHEET_ID")
+spreadsheet = gc.open_by_key(spreadsheet_id)
+sheet_tasks = spreadsheet.worksheet("Задачи")
+sheet_thoughts = spreadsheet.worksheet("Мысли")
 
-# Декодируем Google credentials
-creds_json_path = "google_creds.json"
-with open(creds_json_path, "w") as f:
-    f.write(base64.b64decode(GOOGLE_CREDS_B64).decode("utf-8"))
+# Инициализация Telegram-бота
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+bot = telebot.TeleBot(BOT_TOKEN)
 
-# Подключаемся к таблице
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name(creds_json_path, scope)
-client = gspread.authorize(creds)
-spreadsheet = client.open_by_key(SPREADSHEET_ID)
-sheet = spreadsheet.sheet1
+# Инициализация OpenAI клиента
+openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# OpenAI
-openai.api_key = OPENAI_API_KEY
-
-# Telegram bot
-bot = telebot.TeleBot(TELEGRAM_TOKEN)
-
-@bot.message_handler(commands=['start'])
-def handle_start(message):
-    bot.send_message(message.chat.id, "Привет! Я твой ассистент. Напиши мне задачу или мысль.")
-
-@bot.message_handler(func=lambda msg: True)
+# Обработка сообщений
+@bot.message_handler(func=lambda message: True)
 def handle_text(message):
-    text = message.text.strip()
+    user_input = message.text
 
-    # Отправка в GPT
-    gpt_response = openai.ChatCompletion.create(
+    # Обращение к OpenAI
+    chat_response = openai_client.chat.completions.create(
         model="gpt-4",
-        messages=[{"role": "user", "content": text}]
+        messages=[{"role": "user", "content": user_input}]
     )
-
-    reply = gpt_response.choices[0].message.content.strip()
+    reply = chat_response.choices[0].message.content.strip()
     bot.send_message(message.chat.id, reply)
 
-    # Сохраняем в Google Таблицу
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    sheet.append_row([now, message.chat.username or "", text, reply])
+# Flask-приложение для фиктивного порта
+app = Flask(__name__)
 
-# Запуск Telegram-бота
+@app.route("/")
+def index():
+    return "Billy Assistant is running."
+
+# Запуск
 if __name__ == "__main__":
-    import threading
     threading.Thread(target=lambda: bot.polling(none_stop=True)).start()
-    app.run(host="0.0.0.0", port=10000)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
