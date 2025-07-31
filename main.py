@@ -29,7 +29,8 @@ client_gs = gspread.authorize(creds)
 spreadsheet = client_gs.open_by_key(SPREADSHEET_ID)
 
 # Подключение к OpenAI
-openai_client = OpenAI(api_key=OPENAI_API_KEY)
+os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
+openai_client = OpenAI()
 
 # Обработка входящих сообщений
 @bot.message_handler(func=lambda message: True)
